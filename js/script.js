@@ -263,15 +263,24 @@ function renderModalMedia(item) {
     previewImage.alt = `${item.title} video preview`;
     previewLink.appendChild(previewImage);
 
-    const overlay = document.createElement('div');
-    overlay.className = 'video-preview-overlay';
-    overlay.innerHTML = `
-      <span class="video-preview-pill">
-        <span class="play-icon" aria-hidden="true">▶</span>
-        Watch Video
-      </span>
-    `;
-    previewLink.appendChild(overlay);
+  if (previewUrl) {
+  const previewImage = document.createElement('img');
+  previewImage.src = previewUrl;
+  previewImage.alt = `${item.title} video preview`;
+  previewLink.appendChild(previewImage);
+} else {
+  previewLink.innerHTML = `
+    <div class="video-space-fallback">
+      <div class="video-space-fallback__stars" aria-hidden="true"></div>
+      <img
+        src="img/nasa-worm-logo.png"
+        alt=""
+        aria-hidden="true"
+        class="video-space-fallback__logo"
+      />
+    </div>
+  `;
+}
   } else {
     previewLink.innerHTML = `
       <div class="video-space-fallback">

@@ -571,42 +571,6 @@ input[type="date"]:focus {
   display: block;
 }
 
-.video-preview-overlay {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: linear-gradient(
-    180deg,
-    rgba(6, 31, 74, 0.12) 0%,
-    rgba(6, 31, 74, 0.46) 100%
-  );
-}
-
-.video-preview-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 20px;
-  border-radius: 999px;
-  background: rgba(6, 31, 74, 0.82);
-  color: #ffffff;
-  font-family: "Inter", Helvetica, Arial, sans-serif;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
-
-.play-icon {
-  display: inline-grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.18);
-  font-size: 0.95rem;
-  line-height: 1;
-}
-
 @media (max-width: 1024px) {
   .gallery {
     grid-template-columns: repeat(2, minmax(0, 1fr));
