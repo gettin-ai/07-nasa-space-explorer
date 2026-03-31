@@ -365,7 +365,7 @@ function renderModalMedia(item) {
   const note = document.createElement('p');
   note.className = 'video-note';
   note.textContent =
-    'This APOD entry is a video. Click the preview or use the button below to open it in a new tab.';
+    'This APOD entry is a video. Click the preview or use the button below the description to open it in a new tab.';
   modalMedia.appendChild(note);
 }
 

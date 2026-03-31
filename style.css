@@ -138,8 +138,8 @@ input {
     display: flex;
     flex-direction: row;
     align-items: center;
-    justify-content: flex-start;
-    gap: 0;
+    justify-content: space-between;
+    gap: 24px;
     padding: 24px 0;
     text-align: left;
   }
@@ -147,9 +147,8 @@ input {
   .header-left {
     display: flex;
     align-items: center;
-    flex: 1;
-    padding: 0 32px;
-    padding-left: 0;
+    max-width: 70%;
+    padding: 0;
   }
 
   .header-left h1 {
@@ -178,9 +177,10 @@ input {
     display: flex;
     flex-direction: row;
     align-items: center;
-    gap: 20px;
+    gap: 16px;
     flex-shrink: 0;
-    padding: 0 32px;
+    margin-left: auto;
+    padding: 0;
   }
 
   .agency-name {
