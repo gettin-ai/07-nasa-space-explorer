@@ -158,6 +158,21 @@ function renderGallery(items) {
       const isVideo = item.media_type === 'video';
       const mediaUrl = getGalleryMediaUrl(item);
 
+      const mediaMarkup = mediaUrl
+        ? `<img src="${escapeHtml(mediaUrl)}" alt="${escapeHtml(item.title)}" loading="lazy" />`
+        : `
+          <div class="video-space-fallback">
+            <div class="video-space-fallback__stars" aria-hidden="true"></div>
+            <img
+              src="img/nasa-worm-logo.png"
+              alt=""
+              aria-hidden="true"
+              class="video-space-fallback__logo"
+              loading="lazy"
+            />
+          </div>
+        `;
+
       return `
         <article
           class="gallery-card"
@@ -167,7 +182,7 @@ function renderGallery(items) {
           aria-label="Open details for ${escapeHtml(item.title)}"
         >
           <div class="card-media">
-            <img src="${escapeHtml(mediaUrl)}" alt="${escapeHtml(item.title)}" loading="lazy" />
+            ${mediaMarkup}
             ${isVideo ? '<span class="media-badge">VIDEO</span>' : ''}
           </div>
 
@@ -239,23 +254,38 @@ function renderModalMedia(item) {
   previewLink.target = '_blank';
   previewLink.rel = 'noopener noreferrer';
   previewLink.className = 'video-preview-link';
+  previewLink.dataset.hoverLabel = 'Watch Video';
   previewLink.setAttribute('aria-label', `Open video for ${item.title} in a new tab`);
 
-  const previewImage = document.createElement('img');
-  previewImage.src = previewUrl;
-  previewImage.alt = `${item.title} video preview`;
+  if (previewUrl) {
+    const previewImage = document.createElement('img');
+    previewImage.src = previewUrl;
+    previewImage.alt = `${item.title} video preview`;
+    previewLink.appendChild(previewImage);
 
-  const overlay = document.createElement('div');
-  overlay.className = 'video-preview-overlay';
-  overlay.innerHTML = `
-    <span class="video-preview-pill">
-      <span class="play-icon" aria-hidden="true">▶</span>
-      Watch Video
-    </span>
-  `;
+    const overlay = document.createElement('div');
+    overlay.className = 'video-preview-overlay';
+    overlay.innerHTML = `
+      <span class="video-preview-pill">
+        <span class="play-icon" aria-hidden="true">▶</span>
+        Watch Video
+      </span>
+    `;
+    previewLink.appendChild(overlay);
+  } else {
+    previewLink.innerHTML = `
+      <div class="video-space-fallback">
+        <div class="video-space-fallback__stars" aria-hidden="true"></div>
+        <img
+          src="img/nasa-worm-logo.png"
+          alt=""
+          aria-hidden="true"
+          class="video-space-fallback__logo"
+        />
+      </div>
+    `;
+  }
 
-  previewLink.appendChild(previewImage);
-  previewLink.appendChild(overlay);
   modalMedia.appendChild(previewLink);
 
   const note = document.createElement('p');
@@ -279,7 +309,7 @@ function getGalleryMediaUrl(item) {
     return youtubeThumbnail;
   }
 
-  return getVideoPlaceholderImage();
+  return '';
 }
 
 function getVideoPlaceholderImage() {
