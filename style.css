@@ -671,6 +671,12 @@ input[type="date"]:focus {
   background: #000;
 }
 
+.modal-media > .video-space-fallback {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 18px;
+}
+
 .modal-media img {
   object-fit: contain;
 }
@@ -702,6 +708,14 @@ input[type="date"]:focus {
   color: var(--color-gray-dark);
   line-height: 1.8;
   margin-bottom: 18px;
+}
+
+.modal-explanation p + p {
+  margin-top: 1em;
+}
+
+.modal-explanation a {
+  color: var(--color-primary);
 }
 
 .modal-link {
