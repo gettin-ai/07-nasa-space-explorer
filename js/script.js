@@ -2,17 +2,17 @@ const APOD_ENDPOINT = 'https://science.nasa.gov/wp-json/wp/v2/apod-basic';
 const APOD_PAGE_SIZE = 25;
 
 const spaceFacts = [
-  'A day on Venus is longer than a year on Venus.',
+  'A single rotation of Venus takes 243 Earth days—longer than its 225-day year.',
   'Light from the Sun takes about 8 minutes and 20 seconds to reach Earth.',
   'Mercury has a year that lasts only 88 Earth days.',
   'Mars has the tallest known volcano in the solar system: Olympus Mons.',
   'Jupiter is so large that more than 1,300 Earths could fit inside it.',
-  'Saturn is less dense than water, so it would float in a giant enough ocean.',
+  'Saturn\'s average density is lower than water\'s, so theoretically it could float in an enormous ocean.',
   'Neutron stars can spin hundreds of times every second.',
   'One teaspoon of neutron-star matter would weigh around a billion tons on Earth.',
-  'The footprints left on the Moon can remain for millions of years.',
+  'Footprints on the Moon can survive for thousands of years because there\'s no wind or rain to erase them.',
   'The Moon is moving away from Earth by about 3.8 centimeters each year.',
-  'Earth is hit by roughly 100 tons of space dust every day.',
+  'Tens of tons of extraterrestrial dust and debris enter Earth\'s atmosphere every day.',
   'A year on Uranus is about 84 Earth years.',
   'A year on Neptune is about 165 Earth years.',
   'The Milky Way is a barred spiral galaxy.',
@@ -24,9 +24,9 @@ const spaceFacts = [
   'Black holes have gravity so strong that not even light can escape from inside the event horizon.',
   'The James Webb Space Telescope studies the universe mostly in infrared light.',
   'Some exoplanets orbit two stars, like a real-life Tatooine sky.',
-  'The closest star system to us, Alpha Centauri, is about 4.37 light-years away.',
+  'Proxima Centauri, part of the Alpha Centauri star system, is the closest star to our Sun at about 4.24 light-years away.',
   'A light-year is a distance: how far light travels in one year.',
-  'Most of the atoms in your body were forged inside stars.'
+  'Many elements in your body, including carbon and oxygen, were forged inside ancient stars.'
 ];
 
 const startInput = document.getElementById('startDate');
@@ -159,7 +159,8 @@ async function fetchSpaceImages() {
     return;
   }
 
-  renderStatus('🔄 Loading space photos…');
+  showRandomFact();
+  renderStatus('🔄 One moment—loading your space photos…');
   renderLoadingState();
 
   try {
