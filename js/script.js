@@ -1,5 +1,5 @@
-const API_KEY = '2r6IjgP5pQbQMsRJhMEFVr2Pabithkde8tebish3';
-const APOD_ENDPOINT = 'https://api.nasa.gov/planetary/apod';
+const APOD_ENDPOINT = 'https://science.nasa.gov/wp-json/wp/v2/apod-basic';
+const APOD_PAGE_SIZE = 25;
 
 const spaceFacts = [
   'A day on Venus is longer than a year on Venus.',
@@ -163,24 +163,7 @@ async function fetchSpaceImages() {
   renderLoadingState();
 
   try {
-    const url = new URL(APOD_ENDPOINT);
-    url.search = new URLSearchParams({
-      api_key: API_KEY,
-      start_date: startDate,
-      end_date: endDate,
-      thumbs: 'true'
-    }).toString();
-
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      throw new Error(`NASA API request failed with status ${response.status}`);
-    }
-
-    const data = await response.json();
-    const items = (Array.isArray(data) ? data : [data]).sort(
-      (a, b) => new Date(b.date) - new Date(a.date)
-    );
+    const items = await fetchApodDateRange(startDate, endDate);
 
     state.items = items;
     renderGallery(items);
@@ -197,6 +180,101 @@ async function fetchSpaceImages() {
     `;
     renderStatus('Something went wrong while loading the gallery.', true);
   }
+}
+
+async function fetchApodDateRange(startDate, endDate) {
+  const pageCache = new Map();
+  const firstPage = await fetchApodPage(1, pageCache);
+  const totalPages = Number(firstPage.totalPages) || 1;
+  const startPage = await findPageForDate(endDate, totalPages, pageCache);
+  const items = [];
+
+  for (let pageNumber = startPage; pageNumber <= totalPages; pageNumber += 1) {
+    const page = await fetchApodPage(pageNumber, pageCache);
+
+    page.items.forEach((item) => {
+      if (item.date >= startDate && item.date <= endDate) {
+        items.push(item);
+      }
+    });
+
+    if (!page.items.length || page.items[page.items.length - 1].date < startDate) {
+      break;
+    }
+  }
+
+  return items.sort((a, b) => new Date(b.date) - new Date(a.date));
+}
+
+async function fetchApodPage(pageNumber, pageCache) {
+  if (pageCache.has(pageNumber)) {
+    return pageCache.get(pageNumber);
+  }
+
+  const url = new URL(APOD_ENDPOINT);
+  url.search = new URLSearchParams({
+    page: String(pageNumber),
+    per_page: String(APOD_PAGE_SIZE),
+    _fields: 'date,title,media_type,explanation,alt,url,permalink,hdurl'
+  }).toString();
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`NASA API request failed with status ${response.status}`);
+  }
+
+  const data = await response.json();
+  if (!Array.isArray(data)) {
+    throw new Error('NASA API returned an unexpected response.');
+  }
+
+  const items = data.filter(isValidApodItem);
+  const page = {
+    items,
+    totalPages: response.headers.get('X-WP-TotalPages')
+  };
+  pageCache.set(pageNumber, page);
+  return page;
+}
+
+async function findPageForDate(targetDate, totalPages, pageCache) {
+  let low = 1;
+  let high = totalPages;
+  let closestPage = 1;
+
+  while (low <= high) {
+    const pageNumber = Math.floor((low + high) / 2);
+    const page = await fetchApodPage(pageNumber, pageCache);
+
+    if (!page.items.length) {
+      high = pageNumber - 1;
+      continue;
+    }
+
+    const newestDate = page.items[0].date;
+    const oldestDate = page.items[page.items.length - 1].date;
+    closestPage = pageNumber;
+
+    if (targetDate > newestDate) {
+      high = pageNumber - 1;
+    } else if (targetDate < oldestDate) {
+      low = pageNumber + 1;
+    } else {
+      return pageNumber;
+    }
+  }
+
+  return closestPage;
+}
+
+function isValidApodItem(item) {
+  return Boolean(
+    item &&
+    typeof item === 'object' &&
+    /^\d{4}-\d{2}-\d{2}$/.test(item.date) &&
+    typeof item.title === 'string' &&
+    typeof item.media_type === 'string'
+  );
 }
 
 function renderLoadingState() {
@@ -222,21 +300,11 @@ function renderGallery(items) {
     .map((item, index) => {
       const isVideo = item.media_type === 'video';
       const mediaUrl = getGalleryMediaUrl(item);
+      const altText = item.alt || item.title;
 
       const mediaMarkup = mediaUrl
-        ? `<img src="${escapeHtml(mediaUrl)}" alt="${escapeHtml(item.title)}" loading="lazy" />`
-        : `
-          <div class="video-space-fallback">
-            <div class="video-space-fallback__stars" aria-hidden="true"></div>
-            <img
-              src="img/nasa-worm-logo.png"
-              alt=""
-              aria-hidden="true"
-              class="video-space-fallback__logo"
-              loading="lazy"
-            />
-          </div>
-        `;
+        ? `<img src="${escapeHtml(mediaUrl)}" alt="${escapeHtml(altText)}" loading="lazy" data-media-preview />`
+        : '';
 
       return `
         <article
@@ -259,6 +327,16 @@ function renderGallery(items) {
       `;
     })
     .join('');
+
+  gallery.querySelectorAll('img[data-media-preview]').forEach((image) => {
+    image.addEventListener('error', () => replaceMediaWithFallback(image), { once: true });
+  });
+
+  gallery.querySelectorAll('.card-media').forEach((mediaContainer, index) => {
+    if (!mediaContainer.querySelector('img')) {
+      mediaContainer.prepend(createMediaFallback());
+    }
+  });
 }
 
 function openModal(index) {
@@ -269,16 +347,13 @@ function openModal(index) {
 
   modalDate.textContent = formatDisplayDate(item.date);
   modalTitle.textContent = item.title;
-  modalExplanation.textContent = item.explanation || 'No explanation is available for this entry.';
+  renderExplanation(item.explanation);
 
-  const originalUrl =
-    item.media_type === 'video'
-      ? getExternalVideoUrl(item.url)
-      : normalizeUrl(item.hdurl || item.url);
+  const originalUrl = getArticleUrl(item);
 
   modalExternalLink.href = originalUrl || '#';
   modalExternalLink.textContent =
-    item.media_type === 'video' ? 'Open original video' : 'Open full-resolution image';
+    item.media_type === 'video' ? 'Open original video article' : 'Open NASA article';
   modalExternalLink.hidden = !originalUrl;
 
   renderModalMedia(item);
@@ -304,18 +379,25 @@ function renderModalMedia(item) {
   modalMedia.innerHTML = '';
 
   if (item.media_type === 'image') {
+    const mediaUrl = getGalleryMediaUrl(item);
+    if (!mediaUrl) {
+      modalMedia.appendChild(createMediaFallback());
+      return;
+    }
+
     const image = document.createElement('img');
-    image.src = normalizeUrl(item.hdurl || item.url);
-    image.alt = item.title;
+    image.src = mediaUrl;
+    image.alt = item.alt || item.title;
+    image.addEventListener('error', () => replaceMediaWithFallback(image), { once: true });
     modalMedia.appendChild(image);
     return;
   }
 
   const previewUrl = getGalleryMediaUrl(item);
-  const videoUrl = getExternalVideoUrl(item.url);
+  const articleUrl = getArticleUrl(item);
 
   const previewLink = document.createElement('a');
-  previewLink.href = videoUrl;
+  previewLink.href = articleUrl || '#';
   previewLink.target = '_blank';
   previewLink.rel = 'noopener noreferrer';
   previewLink.className = 'video-preview-link';
@@ -325,39 +407,11 @@ function renderModalMedia(item) {
   if (previewUrl) {
     const previewImage = document.createElement('img');
     previewImage.src = previewUrl;
-    previewImage.alt = `${item.title} video preview`;
+    previewImage.alt = item.alt || `${item.title} video preview`;
+    previewImage.addEventListener('error', () => replaceMediaWithFallback(previewImage), { once: true });
     previewLink.appendChild(previewImage);
-
-  if (previewUrl) {
-  const previewImage = document.createElement('img');
-  previewImage.src = previewUrl;
-  previewImage.alt = `${item.title} video preview`;
-  previewLink.appendChild(previewImage);
-} else {
-  previewLink.innerHTML = `
-    <div class="video-space-fallback">
-      <div class="video-space-fallback__stars" aria-hidden="true"></div>
-      <img
-        src="img/nasa-worm-logo.png"
-        alt=""
-        aria-hidden="true"
-        class="video-space-fallback__logo"
-      />
-    </div>
-  `;
-}
   } else {
-    previewLink.innerHTML = `
-      <div class="video-space-fallback">
-        <div class="video-space-fallback__stars" aria-hidden="true"></div>
-        <img
-          src="img/nasa-worm-logo.png"
-          alt=""
-          aria-hidden="true"
-          class="video-space-fallback__logo"
-        />
-      </div>
-    `;
+    previewLink.appendChild(createMediaFallback());
   }
 
   modalMedia.appendChild(previewLink);
@@ -370,20 +424,110 @@ function renderModalMedia(item) {
 }
 
 function getGalleryMediaUrl(item) {
-  if (item.media_type === 'image') {
-    return normalizeUrl(item.url);
+  if (isUsableMediaUrl(item.hdurl)) {
+    return normalizeUrl(item.hdurl);
   }
 
-  if (item.thumbnail_url) {
-    return normalizeUrl(item.thumbnail_url);
+  return item.media_type === 'image' && isUsableMediaUrl(item.url)
+    ? normalizeUrl(item.url)
+    : '';
+}
+
+function getArticleUrl(item) {
+  return isUsableMediaUrl(item.permalink)
+    ? normalizeUrl(item.permalink)
+    : isUsableMediaUrl(item.url)
+      ? normalizeUrl(item.url)
+      : '';
+}
+
+function isUsableMediaUrl(url) {
+  try {
+    const parsedUrl = new URL(normalizeUrl(url));
+    return parsedUrl.protocol === 'https:' || parsedUrl.protocol === 'http:';
+  } catch (error) {
+    return false;
+  }
+}
+
+function replaceMediaWithFallback(mediaElement) {
+  mediaElement.replaceWith(createMediaFallback());
+}
+
+function createMediaFallback() {
+  const fallback = document.createElement('div');
+  fallback.className = 'video-space-fallback';
+  fallback.setAttribute('role', 'img');
+  fallback.setAttribute('aria-label', 'Image preview unavailable');
+
+  const stars = document.createElement('div');
+  stars.className = 'video-space-fallback__stars';
+  stars.setAttribute('aria-hidden', 'true');
+
+  const logo = document.createElement('img');
+  logo.src = 'img/nasa-worm-logo.png';
+  logo.alt = '';
+  logo.className = 'video-space-fallback__logo';
+  logo.setAttribute('aria-hidden', 'true');
+
+  fallback.append(stars, logo);
+  return fallback;
+}
+
+function renderExplanation(explanation) {
+  modalExplanation.replaceChildren();
+
+  const explanationHtml = String(explanation || '').replace(
+    /^\s*(?:<[^>]+>\s*)*Explanation:\s*/i,
+    ''
+  );
+
+  if (!explanationHtml.trim()) {
+    modalExplanation.textContent = 'No explanation is available for this entry.';
+    return;
   }
 
-  const youtubeThumbnail = getYouTubeThumbnail(item.url);
-  if (youtubeThumbnail) {
-    return youtubeThumbnail;
-  }
+  const parsedExplanation = new DOMParser().parseFromString(explanationHtml, 'text/html');
+  const fragment = document.createDocumentFragment();
+  appendSafeExplanationNodes(parsedExplanation.body, fragment);
+  modalExplanation.appendChild(fragment);
+}
 
-  return '';
+function appendSafeExplanationNodes(source, target) {
+  source.childNodes.forEach((node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      target.appendChild(document.createTextNode(node.textContent));
+      return;
+    }
+
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+    const tagName = node.tagName.toLowerCase();
+    if (tagName === 'script' || tagName === 'style') return;
+
+    if (tagName === 'a') {
+      const link = document.createElement('a');
+      const href = node.getAttribute('href') || '';
+      if (isUsableMediaUrl(href)) {
+        link.href = normalizeUrl(href);
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+      }
+      appendSafeExplanationNodes(node, link);
+      target.appendChild(link);
+      return;
+    }
+
+    const safeTags = ['p', 'br', 'strong', 'b', 'em', 'i'];
+    if (!safeTags.includes(tagName)) {
+      appendSafeExplanationNodes(node, target);
+      return;
+    }
+
+    const safeElement = document.createElement(tagName === 'b' ? 'strong' : tagName === 'i' ? 'em' : tagName);
+    appendSafeExplanationNodes(node, safeElement);
+    target.appendChild(safeElement);
+  });
 }
 
 function getVideoPlaceholderImage() {
